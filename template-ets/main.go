@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type SumberDaya struct {
@@ -30,6 +31,8 @@ type Aplikasi struct {
 	sumberDaya   []SumberDaya
 	idSumberDaya int
 	mu           sync.Mutex
+	peminjaman   []Peminjaman
+	idPeminjaman int
 }
 
 func kirimError(w http.ResponseWriter, status int, message string) {
@@ -124,16 +127,157 @@ func (a *Aplikasi) detailSumberDaya(w http.ResponseWriter, r *http.Request) {
 	kirimError(w, 404, "resource not found")
 }
 
-func tambahPeminjaman(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("POST peminjaman"))
+func (a *Aplikasi) tambahPeminjaman(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		SumberDayaID *int    `json:"sumber_daya_id"`
+		Peminjam     *string `json:"peminjam"`
+		Tanggal      *string `json:"tanggal"`
+		SlotMulai    *int    `json:"slot_mulai"`
+		SlotSelesai  *int    `json:"slot_selesai"`
+		Jumlah       *int    `json:"jumlah"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		kirimError(w, 400, "json invalid")
+		return
+	}
+
+	if input.SumberDayaID == nil || input.Peminjam == nil ||
+		input.Tanggal == nil || input.SlotMulai == nil ||
+		input.SlotSelesai == nil || input.Jumlah == nil {
+		kirimError(w, 400, "missing required fields")
+		return
+	}
+
+	var baru Peminjaman
+	baru.SumberDayaID = *input.SumberDayaID
+	baru.Peminjam = *input.Peminjam
+	baru.Tanggal = *input.Tanggal
+	baru.SlotMulai = *input.SlotMulai
+	baru.SlotSelesai = *input.SlotSelesai
+	baru.Jumlah = *input.Jumlah
+
+	baru.Peminjam = strings.TrimSpace(baru.Peminjam)
+	baru.Tanggal = strings.TrimSpace(baru.Tanggal)
+
+	if baru.Peminjam == "" || len([]rune(baru.Peminjam)) > 50 {
+		kirimError(w, 400, "name invalid")
+		return
+	}
+
+	tanggal, err := time.Parse("2006-01-02", baru.Tanggal)
+	if err != nil || tanggal.Format("2006-01-02") != baru.Tanggal {
+		kirimError(w, 400, "date invalid")
+		return
+	}
+
+	if baru.SlotMulai < 1 || baru.SlotMulai > 8 ||
+		baru.SlotSelesai < 1 || baru.SlotSelesai > 8 ||
+		baru.SlotMulai > baru.SlotSelesai {
+		kirimError(w, 400, "slot invalid")
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	ada := false
+	stok := 0
+
+	for i := 0; i < len(a.sumberDaya); i++ {
+		if a.sumberDaya[i].ID == baru.SumberDayaID {
+			ada = true
+			stok = a.sumberDaya[i].Stok
+			break
+		}
+	}
+
+	if !ada {
+		kirimError(w, 400, "resource not found")
+		return
+	}
+
+	if baru.Jumlah < 1 || baru.Jumlah > stok {
+		kirimError(w, 400, "invalid amount")
+		return
+	}
+
+	baru.ID = a.idPeminjaman
+	a.idPeminjaman++
+	baru.Status = "aktif"
+
+	a.peminjaman = append(a.peminjaman, baru)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	json.NewEncoder(w).Encode(baru)
 }
 
-func semuaPeminjaman(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("GET semua peminjaman"))
+func (a *Aplikasi) semuaPeminjaman(w http.ResponseWriter, r *http.Request) {
+	filterID := r.URL.Query().Get("sumber_daya_id")
+	filterTanggal := r.URL.Query().Get("tanggal")
+	filterStatus := r.URL.Query().Get("status")
+
+	id := 0
+
+	if filterID != "" {
+		var err error
+		id, err = strconv.Atoi(filterID)
+
+		if err != nil {
+			kirimError(w, 400, "id invalid")
+			return
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	hasil := []Peminjaman{}
+
+	for i := 0; i < len(a.peminjaman); i++ {
+		data := a.peminjaman[i]
+
+		if filterID != "" && data.SumberDayaID != id {
+			continue
+		}
+
+		if filterTanggal != "" && data.Tanggal != filterTanggal {
+			continue
+		}
+
+		if filterStatus != "" && data.Status != filterStatus {
+			continue
+		}
+
+		hasil = append(hasil, data)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(hasil)
 }
 
-func detailPeminjaman(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("GET detail peminjaman"))
+func (a *Aplikasi) detailPeminjaman(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+
+	if err != nil {
+		kirimError(w, 400, "id invalid")
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for i := 0; i < len(a.peminjaman); i++ {
+		if a.peminjaman[i].ID == id {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(a.peminjaman[i])
+			return
+		}
+	}
+
+	kirimError(w, 404, "loan not found")
 }
 
 func ubahPeminjaman(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +304,8 @@ func NewHandler() http.Handler {
 	a := &Aplikasi{
 		sumberDaya:   []SumberDaya{},
 		idSumberDaya: 1,
+		peminjaman:   []Peminjaman{},
+		idPeminjaman: 1,
 	}
 
 	mux := http.NewServeMux()
@@ -168,10 +314,10 @@ func NewHandler() http.Handler {
 	mux.HandleFunc("GET /sumber-daya", a.semuaSumberDaya)
 	mux.HandleFunc("GET /sumber-daya/{id}", a.detailSumberDaya)
 
-	mux.HandleFunc("POST /peminjaman", tambahPeminjaman)
+	mux.HandleFunc("POST /peminjaman", a.tambahPeminjaman)
 
-	mux.HandleFunc("GET /peminjaman", semuaPeminjaman)
-	mux.HandleFunc("GET /peminjaman/{id}", detailPeminjaman)
+	mux.HandleFunc("GET /peminjaman", a.semuaPeminjaman)
+	mux.HandleFunc("GET /peminjaman/{id}", a.detailPeminjaman)
 
 	mux.HandleFunc("PUT /peminjaman/{id}", ubahPeminjaman)
 	mux.HandleFunc("DELETE /peminjaman/{id}", hapusPeminjaman)
