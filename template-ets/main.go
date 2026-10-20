@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -16,12 +17,20 @@ type SumberDaya struct {
 var sumberDaya = []SumberDaya{}
 var idSumberDaya = 1
 
+func kirimError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{
+		"error": message,
+	})
+}
+
 func tambahSumberDaya(w http.ResponseWriter, r *http.Request) {
 	var baru SumberDaya
 
 	err := json.NewDecoder(r.Body).Decode(&baru)
 	if err != nil {
-		http.Error(w, "json invalid", 400)
+		kirimError(w, 400, "json invalid")
 		return
 	}
 
@@ -29,17 +38,17 @@ func tambahSumberDaya(w http.ResponseWriter, r *http.Request) {
 	baru.Jenis = strings.TrimSpace(baru.Jenis)
 
 	if baru.Nama == "" || len([]rune(baru.Nama)) > 50 {
-		http.Error(w, "name invalid", 400)
+		kirimError(w, 400, "name invalid")
 		return
 	}
 
 	if baru.Jenis != "ruang" && baru.Jenis != "alat" {
-		http.Error(w, "jenis must be ruang/alat", 400)
+		kirimError(w, 400, "jenis must be ruang/alat")
 		return
 	}
 
 	if baru.Stok < 1 {
-		http.Error(w, "stock must be at least 1", 400)
+		kirimError(w, 400, "stock must be at least 1")
 		return
 	}
 
@@ -58,7 +67,22 @@ func semuaSumberDaya(w http.ResponseWriter, r *http.Request) {
 }
 
 func detailSumberDaya(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("GET detail sumber daya"))
+	id, err := strconv.Atoi(r.PathValue("id"))
+
+	if err != nil {
+		kirimError(w, 400, "invalid id")
+		return
+	}
+
+	for i := 0; i < len(sumberDaya); i++ {
+		if sumberDaya[i].ID == id {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(sumberDaya[i])
+			return
+		}
+	}
+
+	kirimError(w, 404, "resource not found")
 }
 
 func tambahPeminjaman(w http.ResponseWriter, r *http.Request) {
