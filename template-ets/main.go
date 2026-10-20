@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type SumberDaya struct {
@@ -14,8 +15,22 @@ type SumberDaya struct {
 	Stok  int    `json:"stok"`
 }
 
-var sumberDaya = []SumberDaya{}
-var idSumberDaya = 1
+type Peminjaman struct {
+	ID           int    `json:"id"`
+	SumberDayaID int    `json:"sumber_daya_id"`
+	Peminjam     string `json:"peminjam"`
+	Tanggal      string `json:"tanggal"`
+	SlotMulai    int    `json:"slot_mulai"`
+	SlotSelesai  int    `json:"slot_selesai"`
+	Jumlah       int    `json:"jumlah"`
+	Status       string `json:"status"`
+}
+
+type Aplikasi struct {
+	sumberDaya   []SumberDaya
+	idSumberDaya int
+	mu           sync.Mutex
+}
 
 func kirimError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
@@ -25,14 +40,28 @@ func kirimError(w http.ResponseWriter, status int, message string) {
 	})
 }
 
-func tambahSumberDaya(w http.ResponseWriter, r *http.Request) {
-	var baru SumberDaya
+func (a *Aplikasi) tambahSumberDaya(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Nama  *string `json:"nama"`
+		Jenis *string `json:"jenis"`
+		Stok  *int    `json:"stok"`
+	}
 
-	err := json.NewDecoder(r.Body).Decode(&baru)
+	err := json.NewDecoder(r.Body).Decode(&input)
 	if err != nil {
 		kirimError(w, 400, "json invalid")
 		return
 	}
+
+	if input.Nama == nil || input.Jenis == nil || input.Stok == nil {
+		kirimError(w, 400, "missing required fields")
+		return
+	}
+
+	var baru SumberDaya
+	baru.Nama = *input.Nama
+	baru.Jenis = *input.Jenis
+	baru.Stok = *input.Stok
 
 	baru.Nama = strings.TrimSpace(baru.Nama)
 	baru.Jenis = strings.TrimSpace(baru.Jenis)
@@ -52,32 +81,42 @@ func tambahSumberDaya(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baru.ID = idSumberDaya
-	idSumberDaya++
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
-	sumberDaya = append(sumberDaya, baru)
+	baru.ID = a.idSumberDaya
+	a.idSumberDaya++
+
+	a.sumberDaya = append(a.sumberDaya, baru)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(201)
 	json.NewEncoder(w).Encode(baru)
 }
 
-func semuaSumberDaya(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("GET semua sumber daya"))
+func (a *Aplikasi) semuaSumberDaya(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(a.sumberDaya)
 }
 
-func detailSumberDaya(w http.ResponseWriter, r *http.Request) {
+func (a *Aplikasi) detailSumberDaya(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.PathValue("id"))
 
 	if err != nil {
-		kirimError(w, 400, "invalid id")
+		kirimError(w, 400, "id invalid")
 		return
 	}
 
-	for i := 0; i < len(sumberDaya); i++ {
-		if sumberDaya[i].ID == id {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for i := 0; i < len(a.sumberDaya); i++ {
+		if a.sumberDaya[i].ID == id {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(sumberDaya[i])
+			json.NewEncoder(w).Encode(a.sumberDaya[i])
 			return
 		}
 	}
@@ -107,8 +146,8 @@ func hapusPeminjaman(w http.ResponseWriter, r *http.Request) {
 
 func tambahBlokir(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("POST blokir"))
-
 }
+
 func semuaBlokir(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("GET semua blokir"))
 }
@@ -118,11 +157,16 @@ func hapusBlokir(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewHandler() http.Handler {
+	a := &Aplikasi{
+		sumberDaya:   []SumberDaya{},
+		idSumberDaya: 1,
+	}
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /sumber-daya", tambahSumberDaya)
-	mux.HandleFunc("GET /sumber-daya", semuaSumberDaya)
-	mux.HandleFunc("GET /sumber-daya/{id}", detailSumberDaya)
+	mux.HandleFunc("POST /sumber-daya", a.tambahSumberDaya)
+	mux.HandleFunc("GET /sumber-daya", a.semuaSumberDaya)
+	mux.HandleFunc("GET /sumber-daya/{id}", a.detailSumberDaya)
 
 	mux.HandleFunc("POST /peminjaman", tambahPeminjaman)
 
