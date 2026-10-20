@@ -9,7 +9,22 @@ Log yang jujur tidak mengurangi nilai, sebanyak apa pun AI dipakai. Yang mengura
 - Dipakai: (bagian kode yang kamu ambil, misalnya nama fungsi dan file)
 - Diubah: (apa yang kamu ubah atau perbaiki dari hasil AI, dan kenapa)
 
-## (Entri berikutnya)
-- Prompt:
-- Dipakai:
-- Diubah:
+## Pembuatan endpoint
+- Prompt: menanyakan contoh membuat endpoint di golang dengan studi kasus yang berbeda
+- Dipakai: semua endpoint yang telah dibuat
+- Diubah: -
+
+## Pembuatan endpoint
+- Prompt: menanyakan contoh membuat endpoint di golang dengan studi kasus yang berbeda
+- Dipakai: semua endpoint yang telah dibuat
+- Diubah: -
+
+## Sumber daya
+- Prompt: minta penjelasan dan contoh penggunaan struct, slice, GET dan POST
+- Dipakai: struct SumberDaya, func tambahSumberDaya(), semuaSumberDaya(), dan detailSumberDaya().
+- Diubah: di pencarian ID dibuat pakai for loop biasa biar lebih gampang dipahami
+
+## Penyimpanan data
+- Prompt: minta penjelasan penggunaan mutex
+- Dipakai: struct Aplikasi, slice, dan sync.Mutex.
+- Diubah: -
