@@ -1,7 +1,7 @@
 # PinjamKampus API
 
-- Nama dan NRP:
-- Persona:
+- Nama dan NRP: Handhika Putra Widyartono 5053241039
+- Persona: A (5 % 5)
 - Cara menjalankan: `go run .` lalu buka http://localhost:8080
 
 ## Fitur
