@@ -1,10 +1,16 @@
 # PROSES
 
 ## 1. Persona dan masalahnya
-(2-3 kalimat dengan kata-katamu sendiri: siapa pengguna persona kamu, masalah apa yang diselesaikan fitur khasnya.)
+Persona E. Masalahnya adalah terkadang laboratorium digunakan untuk praktikum atau perbaikan, sehingga tidak bisa dipinjam pada jadwal tertentu.
 
 ## 2. Rancangan struktur data
-(Tulis struct dan slice/map apa yang kamu simpan, dan kenapa dipilih begitu. Rancang ini sebelum menulis kode, lalu catat kalau berubah di tengah jalan.)
+- SumberDaya: menyimpan id, nama, jenis, dan stok dari ruang atau alat.
+
+- Peminjaman: menyimpan id peminjaman, id sumber daya, nama peminjam, tanggal, slot mulai, slot selesai, jumlah, dan status.
+
+- Aplikasi: digunakan untuk menampung data sumber daya dan peminjaman, termasuk nomor id berikutnya dan mutex.
+
+Awalnya saya menggunakan variabel global untuk menyimpan data, tetapi kemudian dipindahkan ke dalam struct Aplikasi supaya setiap pemanggilan NewHandler() memiliki penyimpanan sendiri.
 
 ## 3. Satu keputusan desain
 (Satu keputusan yang kamu ambil, pilihan lain yang kamu pertimbangkan, dan alasanmu memilih yang ini. Contoh: kenapa cek bentrok per slot, bukan per rentang.)
